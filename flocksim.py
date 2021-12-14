@@ -1,58 +1,68 @@
 import pyglet
-from pyglet import _thread_trace_func, shapes
+from pyglet import _thread_trace_func, shapes, clock
 import random
 import math
 
 from pyglet.graphics import draw
-
-window = pyglet.window.Window()
+size = 1000
+window = pyglet.window.Window(width=size, height=size)
 batch = pyglet.graphics.Batch()
 boids = []
-size = 100
-population = 10
 
-coherence = 0.5
+population = 300
+
+coherence = 0.05
 seperation = 3
-alignment = 0.1
-visualRange = 10
+alignment = 0.01
+visualRange = 100
+velocity= 0.1
 
 def initBoids():
     for i in range(population):
         #x y dx dy 
-        boids.append([size*random.random(), size*random.random(), 0,0])
+        boids.append([size*random.random(), size*random.random(), 1,1])
         
 def steervector(body, targetx, targety, turnrate):
-    body[2] += (targetx-body[2])*turnrate
-    body[3] += (targety-body[3])*turnrate
+    body[2] += (body[2]-targetx)*turnrate
+    body[3] += (body[3]-targety)*turnrate
 
 def distance(b1,b2):
     return math.sqrt((b1[0]-b2[0])**2 + (b1[1]-b2[1])**2)
 
-def update(currentboid):
+def updateb(currentboid):
     #list of boids within visual range
-    boids.remove(currentboid)
+    
+    if distance(currentboid,[size/2, size/2]) > size/2:
+        targetxpos = currentboid[0] - currentboid[2]
+        targetypos = currentboid[1] - currentboid[3]
+        steervector(currentboid,2*targetxpos,2*targetypos, 1)
+        
     active = []
     for i in boids:
-        if distance(i,currentboid) < visualRange:
+        if distance(i,currentboid) < visualRange and i != currentboid:
             active.append(i)
-
+    if active == []:
+        currentboid[0]+=currentboid[2]
+        currentboid[1]+=currentboid[3]
+        return
     #steer towards center of mass 
     targetxpos = (sum([i[0] for i in active])/len(active))-currentboid[0]
     targetypos = (sum([i[1] for i in active])/len(active))-currentboid[1]
     steervector(currentboid, targetxpos,targetypos,coherence)
 
-    #avoid other boids
+    #avoid other boids 
     for i in active:
         if distance(i,currentboid) < seperation:
             targetxpos = currentboid[0]-i[0]
             targetypos = currentboid[1]-i[1]
             steervector(currentboid, targetxpos,targetypos,coherence)
-            
+ 
 
     #align with other boids accounting for alignment
     targetxvector = sum([i[2] for i in active])/len(active)
     targetyvector = sum([i[3] for i in active])/len(active)
     steervector(currentboid, targetxvector,targetyvector,alignment)
+
 
     currentboid[0]+=currentboid[2]
     currentboid[1]+=currentboid[3]
@@ -63,23 +73,14 @@ initBoids()
 @window.event
 def on_draw():
     window.clear()
-    drawboid = [int(item) for sublist in [[i[0],i[1]] for i in boids] for item in sublist]
-    print(len(drawboid))
-    pyglet.graphics.draw(population, pyglet.gl.GL_POINTS,
-    ('v2i', drawboid))
-"""
-def main():
-    window = pyglet.window.Window()
-    batch = pyglet.graphics.Batch()
-    boids = []
-    size = 100
-    population = 10
+    drawboid = [shapes.Circle(x = i[0], y = i[1], radius = 2, color=(255, 0, 0), batch=batch) for i in boids]
+    batch.draw()
 
-    coherence = 0.5
-    seperation = 3
-    alignment = 0.1
-    visualRange = 10
+    
+def update(dt):
 
-    pyglet.clock.schedule_interval(foo, 1.0)
-    pyglet.app.run()
-main()"""
+    for i in boids:
+        updateb(i)
+    
+clock.schedule_interval(update, 1/60.0)
+pyglet.app.run()
